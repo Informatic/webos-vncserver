@@ -77,14 +77,14 @@ Service can be controlled using Luna service bus calls:
 
 As usual - all these commands can be issued using `luna-send` command like so:
 ```sh
-luna-send -n 1 'luna://org.webosbrew.hbchannel.service/configure' '{"password": "test"}'
-luna-send -n 1 'luna://org.webosbrew.hbchannel.service/start' '{}'
+luna-send -n 1 'luna://org.webosbrew.vncserver.service/configure' '{"password": "test"}'
+luna-send -n 1 'luna://org.webosbrew.vncserver.service/start' '{}'
 ```
 
 # Building
 ## Service
-To cross-compile for WebOS, you will [need an
-toolchain](https://github.com/openlgtv/buildroot-nc4/releases/tag/webos-c592d84).
+To cross-compile for WebOS, you will [need a
+toolchain](https://github.com/openlgtv/buildroot-nc4/releases/tag/webos-b17b4cc).
 
 ```sh
 cmake -S . -B build && cmake --build build --target webos-vncserver --target capture_gm --target capture_halgal
