@@ -12,6 +12,7 @@ typedef struct {
 	int framerate;
 	char* password;
 	bool autostart;
+    bool capture_video;
 } settings_t;
 
 int settings_load_json(settings_t* settings, jvalue_ref source);

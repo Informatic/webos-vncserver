@@ -41,6 +41,7 @@ export function App() {
   const [width, setWidth] = React.useState("");
   const [height, setHeight] = React.useState("");
   const [autostart, setAutostart] = React.useState(false);
+  const [captureVideo, setCaptureVideo] = React.useState(false);
 
   const [running, setRunning] = React.useState(null);
   const [activeClients, setActiveClients] = React.useState(0);
@@ -92,6 +93,7 @@ export function App() {
       setHeight(status.settings.height);
       setAutostart(status.settings.autostart);
       setFramerate(status.settings.framerate);
+      setCaptureVideo(status.settings.captureVideo);
 
       setLoading(false);
     } catch (err) {
@@ -109,6 +111,7 @@ export function App() {
         autostart,
         password,
         framerate,
+        captureVideo,
       });
       setStatusText("Configuration changed.");
     } catch (err) {
@@ -168,6 +171,11 @@ export function App() {
           type="password"
           value={password}
           onChange={(evt) => setPassword(evt.target.value)}
+        />
+        <SwitchItem
+          checked={captureVideo}
+          label="Capture Video"
+          onClick={() => setCaptureVideo(!captureVideo)}
         />
         <SwitchItem
           checked={autostart}

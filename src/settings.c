@@ -8,9 +8,10 @@ int settings_load_json(settings_t* settings_p, jvalue_ref parsed) {
 	if ((value = jobject_get(parsed, j_cstr_to_buffer("width"))) && jis_number(value)) jnumber_get_i32(value, &settings_p->width);
 	if ((value = jobject_get(parsed, j_cstr_to_buffer("height"))) && jis_number(value)) jnumber_get_i32(value, &settings_p->height);
 	if ((value = jobject_get(parsed, j_cstr_to_buffer("framerate"))) && jis_number(value)) jnumber_get_i32(value, &settings_p->framerate);
+	if ((value = jobject_get(parsed, j_cstr_to_buffer("captureVideo"))) && jis_boolean(value)) jboolean_get(value, &settings_p->capture_video);
 	if ((value = jobject_get(parsed, j_cstr_to_buffer("password"))) && jis_string(value)) {
 		free(settings_p->password);
-		settings_p->password = jstring_get(value).m_str;
+        settings_p->password = (char *) jstring_get(value).m_str;
 	}
 
 	return 0;
@@ -21,6 +22,7 @@ int settings_save_json(settings_t* settings_p, jvalue_ref target) {
 	jobject_set(target, j_cstr_to_buffer("width"), jnumber_create_i32(settings_p->width));
 	jobject_set(target, j_cstr_to_buffer("height"), jnumber_create_i32(settings_p->height));
 	jobject_set(target, j_cstr_to_buffer("framerate"), jnumber_create_i32(settings_p->framerate));
+	jobject_set(target, j_cstr_to_buffer("captureVideo"), jboolean_create(settings_p->capture_video));
 	jobject_set(target, j_cstr_to_buffer("password"), jstring_create(settings_p->password));
 	return 0;
 }

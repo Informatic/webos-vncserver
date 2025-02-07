@@ -20,11 +20,11 @@ int main (int argc, char** argv) {
 		log_set_level(Debug);
 	}
 
-	server_t server;
+	server_t server = {0};
 	server.active_clients = 0;
 	server.running = false;
 
-	settings_t settings;
+    settings_t settings = {0};
 	loop = g_main_loop_new(NULL, FALSE);
 
 	settings.framerate = 30;
@@ -43,7 +43,6 @@ int main (int argc, char** argv) {
 	if (!getenv("LS_SERVICE_NAMES")) {
 		INFO("Running via CLI - starting anyway");
 		server_start(&server, &settings);
-		server_bind_gmainloop(&server);
 		signal(SIGINT, int_handler);
 	}
 

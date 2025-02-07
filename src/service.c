@@ -32,7 +32,6 @@ bool method_start(LSHandle *sh, LSMessage *message, void *data) {
 		jobject_set(jobj, j_cstr_to_buffer("message"), jstring_create("Running already"));
 	} else {
 		if ((ret = server_start(server_p, settings_p)) == 0) {
-			server_bind_gmainloop(server_p);
 			INFO("Server started, replying...");
 			server_p->running = true;
 			jobject_set(jobj, j_cstr_to_buffer("returnValue"), jboolean_create(TRUE));
@@ -124,7 +123,6 @@ bool method_configure(LSHandle *sh, LSMessage *message, void *data) {
 
 	if (was_running) {
 		if ((ret = server_start(server_p, settings_p)) == 0) {
-			server_bind_gmainloop(server_p);
 			INFO("Server started, replying...");
 			jobject_set(jobj, j_cstr_to_buffer("returnValue"), jboolean_create(TRUE));
 			jobject_set(jobj, j_cstr_to_buffer("message"), jstring_create("Restarted"));

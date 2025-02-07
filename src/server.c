@@ -13,7 +13,7 @@
 #include "log.h"
 #include "server.h"
 #include "settings.h"
-#include "capture.h"
+#include "unicapture.h"
 #include "uinput.h"
 
 unsigned int screenwidth = 1920;
@@ -23,58 +23,71 @@ const unsigned int bpp = 4;
 unsigned int nativewidth = 1920;
 unsigned int nativeheight = 1080;
 
-#define FBSIZE (screenwidth * screenheight * bpp)
-
-static gboolean server_frame_handler(gpointer data) {
+static int server_frame_handler(void* data, int width, int height, uint8_t* rgb_data) {
 	server_t* server = (server_t*) data;
-   	server_update(data);
-	return server->running;
+
+    if (server->active_clients > 0) {
+        memcpy(server->screen->frameBuffer, rgb_data, width * height * 4);
+        rfbMarkRectAsModified(server->screen, 0, 0, width, height);
+    }
+
+    return 0;
 }
 
-int capture_backend_load(capture_backend_t* backend, const char* name) {
-	void* handle;
+int server_init_backends(server_t * server, settings_t* settings) {
 
-	handle = dlopen(name, RTLD_NOW);
+    cap_backend_config_t config = {0};
+    config.resolution_width = settings->width;
+    config.resolution_height = settings->height;
+    config.fps = settings->framerate;
 
-	if (handle == NULL) {
-		DBG("Failed to load %s: %s", name, dlerror());
-		return -1;
-	}
+    const char* const ui_backends[] = { "libgm_backend.so", "libhalgal_backend.so", NULL };
+    const char* const video_backends[] = { "libvtcapture_backend.so", "libdile_vt_backend.so", NULL };
+    char backend_name[FILENAME_MAX] = { 0 };
 
-	backend->name = name;
-	backend->init = dlsym(handle, "capture_init");
-	backend->execute = dlsym(handle, "capture_execute");
-	backend->destroy = dlsym(handle, "capture_destroy");
+    if (!server->ui_backend_initialized) {
+        server->unicapture.ui_capture = NULL;
+        INFO("Autodetecting UI backend...");
+        if (unicapture_try_backends(&config, &server->ui_backend, ui_backends) == 0) {
+            server->unicapture.ui_capture = &server->ui_backend;
+            server->ui_backend_initialized = true;
+        } else {
+            ERR("Failed to initialize UI capture backend");
+            return -1;
+        }
+    }
 
-	return 0;
+    if (!server->video_backend_initialized) {
+        server->unicapture.video_capture = NULL;
+
+        if (!settings->capture_video) {
+            INFO("Video capture disabled");
+        } else {
+            INFO("Autodetecting video backend...");
+            if (unicapture_try_backends(&config, &server->video_backend, video_backends) == 0) {
+                server->unicapture.video_capture = &server->video_backend;
+                server->video_backend_initialized = true;
+            } else {
+                ERR("Failed to initialize video capture backend");
+                return -1;
+            }
+        }
+    }
+    return 0;
 }
 
-int capture_backend_init(capture_backend_t* backend, uint32_t width, uint32_t height) {
-	int ret;
+void server_destroy_backends(server_t* server) {
+    if (server->ui_backend_initialized && server->ui_backend.cleanup) {
+        DBG("Cleaning up UI backend...");
+        DBG("Result: %d", server->ui_backend.cleanup(server->ui_backend.state));
+        server->ui_backend_initialized = false;
+    }
 
-	if ((ret = capture_backend_load(backend, "libcapture_halgal.so")) != 0) {
-		DBG("%s load failed: %d", "libcapture_halgal", ret);
-	} else {
-		if ((ret = backend->init(width, height)) != 0) {
-			DBG("%s init failed: %d", "libcapture_halgal", ret);
-		} else {
-			return 0;
-		}
-	}
-
-	if ((ret = capture_backend_load(backend, "libcapture_gm.so")) != 0) {
-		DBG("%s load failed: %d", "libcapture_gm", ret);
-	} else {
-		if ((ret = backend->init(width, height)) != 0) {
-			DBG("%s init failed: %d", "libcapture_gm", ret);
-		} else {
-			return 0;
-		}
-	}
-
-	WARN("No eligible capture backends found");
-
-	return -1;
+    if (server->video_backend_initialized && server->video_backend.cleanup) {
+        DBG("Cleaning up video backend...");
+        DBG("Result: %d", server->video_backend.cleanup(server->video_backend.state));
+        server->video_backend_initialized = false;
+    }
 }
 
 static void server_client_gone(rfbClientPtr cl) {
@@ -83,11 +96,15 @@ static void server_client_gone(rfbClientPtr cl) {
 	INFO("%s [%d]: Client disconnected", cl->host, server->active_clients);
 
 	server->active_clients -= 1;
+    if (server->active_clients == 0) {
+        unicapture_stop(&server->unicapture);
+    }
 }
 
 static enum rfbNewClientAction server_client_incoming(rfbClientPtr cl) {
 	server_t* server = (server_t*) cl->screen->screenData;
 	server->active_clients += 1;
+    unicapture_start(&server->unicapture);
 
 	cl->clientGoneHook = &server_client_gone;
 
@@ -108,12 +125,19 @@ static void ptrevent(int buttonMask, int x, int y, rfbClientPtr cl) {
 int server_start(server_t* server, settings_t* settings) {
 	int ret;
 
-	if ((ret = capture_backend_init(&server->capture, settings->width, settings->height)) != 0) {
+    unicapture_init(&server->unicapture);
+    server->unicapture.vsync = true;
+    server->unicapture.fps = settings->framerate;
+    server->unicapture.target_format = PIXFMT_ARGB;
+    server->unicapture.callback = server_frame_handler;
+    server->unicapture.callback_data = server;
+
+	if ((ret = server_init_backends(server, settings)) != 0) {
 		ERR("capture_init() failed: %d", ret);
 		return -2;
 	}
 
-	INFO("Using capture backend: %s", server->capture.name);
+	INFO("Using capture backend: ui=%s, video=%s", server->ui_backend.name, server->video_backend.name);
 
 	rfbLogEnable(0);
 
@@ -166,31 +190,12 @@ int server_start(server_t* server, settings_t* settings) {
 	return 0;
 }
 
-void server_bind_gmainloop(server_t* server) {
-	server->timeout_ref = g_timeout_add(1000 / server->settings->framerate, server_frame_handler, (gpointer) server);
-}
-
-int server_update(server_t* server) {
-	int ret;
-	if (server->active_clients > 0) {
-		int fbsize = server->screen->width * server->screen->height * bpp;
-		if ((ret = server->capture.execute(server->screen->frameBuffer, fbsize)) != 0) {
-			ERR("capture execute failed: %08x", ret);
-			return -5;
-		}
-
-		rfbMarkRectAsModified(server->screen, 0, 0, server->screen->width, server->screen->height);
-	}
-
-	return 0;
-}
-
-
 int server_stop(server_t* server) {
 	INFO("Shutting down...");
 	g_source_remove(server->timeout_ref);
 	server->running = false;
-	server->capture.destroy();
+    unicapture_stop(&server->unicapture);
+    server_destroy_backends(server);
 	rfbShutdownServer(server->screen, TRUE);
 	free(server->screen->frameBuffer);
 	rfbScreenCleanup(server->screen);

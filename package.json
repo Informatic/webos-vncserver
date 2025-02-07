@@ -6,7 +6,7 @@
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack",
-    "build-service": "cmake -S . -B build && cmake --build build --target webos-vncserver --target capture_gm --target capture_halgal",
+    "build-service": "cmake -S . -B build && cmake --build build --target webos-vncserver",
     "package": "ares-package -o dist/ -n build/frontend build/service",
     "compat-check": "webosbrew-ipk-compat-checker --markdown --github-emoji dist/${npm_package_name}_${npm_package_version}_all.ipk",
     "build-manifest": "webosbrew-gen-manifest --appinfo build/frontend/appinfo.json --pkgfile dist/${npm_package_name}_${npm_package_version}_all.ipk --output dist/${npm_package_name}.manifest.json --icon assets/largeIcon.png --link https://github.com/Informatic/webos-vncserver --root true",

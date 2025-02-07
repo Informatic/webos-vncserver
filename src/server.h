@@ -4,16 +4,15 @@
 #include <rfb/rfb.h>
 #include <glib.h>
 #include "settings.h"
-
-typedef struct _capture_backend {
-	const char* name;
-	int (*init)(uint32_t width, uint32_t height);
-	int (*execute)(uint8_t* target, uint32_t size);
-	int (*destroy)(void);
-} capture_backend_t;
+#include "../unicapture/hyperion-webos/unicapture/unicapture.h"
 
 typedef struct {
-	capture_backend_t capture;
+	unicapture_state_t unicapture;
+    bool ui_backend_initialized;
+    bool video_backend_initialized;
+    capture_backend_t ui_backend;
+    capture_backend_t video_backend;
+
 	rfbScreenInfoPtr screen;
 	int active_clients;
 	settings_t* settings;
@@ -24,5 +23,3 @@ typedef struct {
 
 int server_start(server_t* server, settings_t* settings);
 int server_stop(server_t* server);
-int server_update(server_t* server);
-void server_bind_gmainloop(server_t* server);
